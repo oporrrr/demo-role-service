@@ -29,6 +29,7 @@ func Connect() {
 		&entity.UserRole{},
 		&entity.AdminUser{},
 		&entity.Menu{},
+		&entity.User{},
 	); err != nil {
 		log.Fatalf("failed to migrate: %v", err)
 	}

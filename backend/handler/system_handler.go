@@ -12,14 +12,16 @@ func NewSystemHandler(svc *service.RoleService) *SystemHandler { return &SystemH
 
 func (h *SystemHandler) Register(c *fiber.Ctx) error {
 	var req struct {
-		Code        string `json:"code"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
+		Code             string `json:"code"`
+		Name             string `json:"name"`
+		Description      string `json:"description"`
+		AuthClientID     string `json:"authClientId"`
+		AuthClientSecret string `json:"authClientSecret"`
 	}
 	if err := c.BodyParser(&req); err != nil || req.Code == "" || req.Name == "" {
 		return c.Status(400).JSON(fiber.Map{"code": "BAD_REQUEST", "message": "code and name are required"})
 	}
-	apiKey, err := h.svc.RegisterSystem(req.Code, req.Name, req.Description)
+	apiKey, err := h.svc.RegisterSystem(req.Code, req.Name, req.Description, req.AuthClientID, req.AuthClientSecret)
 	if err != nil {
 		return c.Status(409).JSON(fiber.Map{"code": "CONFLICT", "message": err.Error()})
 	}
@@ -47,6 +49,22 @@ func (h *SystemHandler) Bootstrap(c *fiber.Ctx) error {
 		"code":    "SUCCESS",
 		"message": "Super Admin role created and assigned — go to Role Manager to create proper roles",
 	})
+}
+
+// PUT /systems/:code/credentials  — update Auth Center client credentials for a system
+func (h *SystemHandler) UpdateCredentials(c *fiber.Ctx) error {
+	code := c.Params("code")
+	var req struct {
+		AuthClientID     string `json:"authClientId"`
+		AuthClientSecret string `json:"authClientSecret"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(400).JSON(fiber.Map{"code": "BAD_REQUEST", "message": "invalid body"})
+	}
+	if err := h.svc.UpdateSystemCredentials(code, req.AuthClientID, req.AuthClientSecret); err != nil {
+		return c.Status(500).JSON(fiber.Map{"code": "ERROR", "message": err.Error()})
+	}
+	return c.JSON(fiber.Map{"code": "SUCCESS"})
 }
 
 // POST /systems/:code/rekey  — generate a new API key for a system (old key is revoked immediately)

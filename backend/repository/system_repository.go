@@ -39,3 +39,8 @@ func (r *SystemRepository) List() ([]entity.System, error) {
 func (r *SystemRepository) UpdateAPIKey(code, hashedKey string) error {
 	return r.db.Model(&entity.System{}).Where("code = ?", code).Update("api_key", hashedKey).Error
 }
+
+func (r *SystemRepository) UpdateCredentials(code, clientID, clientSecret string) error {
+	return r.db.Model(&entity.System{}).Where("code = ?", code).
+		Updates(map[string]interface{}{"auth_client_id": clientID, "auth_client_secret": clientSecret}).Error
+}

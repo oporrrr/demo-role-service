@@ -7,6 +7,7 @@ import (
 	"demo-role-service/database"
 	"demo-role-service/handler"
 	"demo-role-service/middleware"
+	"demo-role-service/repository"
 	"demo-role-service/service"
 
 	"github.com/gofiber/fiber/v2"
@@ -37,6 +38,10 @@ func main() {
 	svc := service.NewRoleService(database.DB, database.Redis)
 
 	adminSvc := service.NewAdminService(database.DB)
+
+	authCenterSvc := service.NewAuthCenterService(config.Cfg.AuthCenterURL)
+	userRepo := repository.NewUserRepository(database.DB)
+	userSvc := service.NewUserService(authCenterSvc, userRepo, database.Redis)
 	// seed first admin user if ADMIN_INITIAL_PASSWORD is set and no admin exists yet
 	if config.Cfg.AdminInitialPassword != "" {
 		if err := adminSvc.Bootstrap(config.Cfg.AdminInitialPassword); err != nil {
@@ -51,14 +56,21 @@ func main() {
 	internalH := handler.NewInternalHandler(svc)
 	menuH := handler.NewMenuHandler(svc)
 	authH := handler.NewAuthHandler(adminSvc)
+	userAuthH := handler.NewUserAuthHandler(userSvc, svc)
 
 	// ── Auth (management frontend login) ───────────────
 	app.Post("/auth/login", authH.Login)
+
+	// ── Auth (user login/register — proxy to Auth Center) ──
+	app.Post("/api/v1/auth/login", userAuthH.Login)
+	app.Post("/api/v1/auth/register", userAuthH.Register)
+	app.Post("/api/v1/auth/logout", middleware.ExtractBearerToken, userAuthH.Logout)
 
 	// ── System Registration ────────────────────────────
 	app.Post("/systems/register", middleware.RequireAdmin, systemH.Register)
 	app.Post("/systems/:code/bootstrap", middleware.RequireAdmin, systemH.Bootstrap)
 	app.Post("/systems/:code/rekey", middleware.RequireAdmin, systemH.ReKey)
+	app.Put("/systems/:code/credentials", middleware.RequireAdmin, systemH.UpdateCredentials)
 	app.Get("/systems", middleware.RequireAdmin, systemH.List)
 
 	// ── Permissions ────────────────────────────────────

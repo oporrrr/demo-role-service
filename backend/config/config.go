@@ -14,6 +14,7 @@ type Config struct {
 	RedisURL             string
 	JWTSecret            string
 	AdminInitialPassword string // seed first admin user on startup if set
+	AuthCenterURL string // upstream Auth Center base URL
 }
 
 var Cfg Config
@@ -28,6 +29,7 @@ func Load() {
 		RedisURL:             getEnv("REDIS_URL", "redis://localhost:6379"),
 		JWTSecret:            getEnv("JWT_SECRET", "change-jwt-secret-in-production"),
 		AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),
+		AuthCenterURL:        getEnv("AUTH_CENTER_URL", ""),
 	}
 
 	log.Printf("config loaded: port=%s", Cfg.AppPort)

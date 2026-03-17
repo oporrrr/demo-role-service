@@ -8,8 +8,16 @@ export const login = (username: string, password: string) =>
 // ── Systems ─────────────────────────────────────────
 export const getSystems = () => client.get('/systems').then((r) => r.data.data)
 
-export const registerSystem = (data: { code: string; name: string; description: string }) =>
-  client.post('/systems/register', data).then((r) => r.data.data)
+export const registerSystem = (data: {
+  code: string
+  name: string
+  description: string
+  authClientId?: string
+  authClientSecret?: string
+}) => client.post('/systems/register', data).then((r) => r.data.data)
+
+export const updateSystemCredentials = (code: string, authClientId: string, authClientSecret: string) =>
+  client.put(`/systems/${code}/credentials`, { authClientId, authClientSecret }).then((r) => r.data)
 
 export const reKeySystem = (code: string) =>
   client.post(`/systems/${code}/rekey`).then((r) => r.data.data)

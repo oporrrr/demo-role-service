@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"demo-role-service/entity"
@@ -19,6 +20,11 @@ import (
 
 var rctx = context.Background()
 
+type cachedSystem struct {
+	system *entity.System
+	expiry time.Time
+}
+
 type RoleService struct {
 	systemRepo     *repository.SystemRepository
 	roleRepo       *repository.RoleRepository
@@ -26,6 +32,7 @@ type RoleService struct {
 	userRoleRepo   *repository.UserRoleRepository
 	menuRepo       *repository.MenuRepository
 	redis          *redis.Client // nil = cache disabled
+	systemCache    sync.Map      // key: systemCode → *cachedSystem
 }
 
 func NewRoleService(db *gorm.DB, rdb *redis.Client) *RoleService {
@@ -41,21 +48,40 @@ func NewRoleService(db *gorm.DB, rdb *redis.Client) *RoleService {
 
 // ── System ────────────────────────────────────────────
 
-func (s *RoleService) RegisterSystem(code, name, description string) (string, error) {
+func (s *RoleService) RegisterSystem(code, name, description, authClientID, authClientSecret string) (string, error) {
 	raw, err := generateAPIKey()
 	if err != nil {
 		return "", err
 	}
 	sys := &entity.System{
-		Code:        code,
-		Name:        name,
-		Description: description,
-		APIKey:      repository.HashAPIKey(raw),
+		Code:             code,
+		Name:             name,
+		Description:      description,
+		APIKey:           repository.HashAPIKey(raw),
+		AuthClientID:     authClientID,
+		AuthClientSecret: authClientSecret,
 	}
 	if err := s.systemRepo.Create(sys); err != nil {
 		return "", fmt.Errorf("system already exists or DB error: %w", err)
 	}
 	return raw, nil
+}
+
+const systemCacheTTL = 5 * time.Minute
+
+func (s *RoleService) GetSystem(code string) (*entity.System, error) {
+	if v, ok := s.systemCache.Load(code); ok {
+		if cs := v.(*cachedSystem); time.Now().Before(cs.expiry) {
+			return cs.system, nil
+		}
+		s.systemCache.Delete(code)
+	}
+	sys, err := s.systemRepo.FindByCode(code)
+	if err != nil {
+		return nil, err
+	}
+	s.systemCache.Store(code, &cachedSystem{system: sys, expiry: time.Now().Add(systemCacheTTL)})
+	return sys, nil
 }
 
 func (s *RoleService) ListSystems() ([]entity.System, error) {
@@ -101,6 +127,14 @@ func (s *RoleService) BootstrapSystem(systemCode, accountID string) error {
 
 	// 4. assign role → user
 	return s.userRoleRepo.Set(accountID, systemCode, role.ID)
+}
+
+func (s *RoleService) UpdateSystemCredentials(code, clientID, clientSecret string) error {
+	if err := s.systemRepo.UpdateCredentials(code, clientID, clientSecret); err != nil {
+		return err
+	}
+	s.systemCache.Delete(code)
+	return nil
 }
 
 func (s *RoleService) ReKeySystem(code string) (string, error) {

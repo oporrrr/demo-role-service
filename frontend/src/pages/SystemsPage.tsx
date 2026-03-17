@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getSystems, registerSystem, reKeySystem, bootstrapSystem } from '../api'
+import { getSystems, registerSystem, reKeySystem, bootstrapSystem, updateSystemCredentials } from '../api'
 import Modal from '../components/Modal'
 import type { System } from '../types'
 
@@ -7,10 +7,17 @@ export default function SystemsPage() {
   const [systems, setSystems] = useState<System[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({ code: '', name: '', description: '' })
+  const [form, setForm] = useState({ code: '', name: '', description: '', authClientId: '', authClientSecret: '' })
   const [apiKey, setApiKey] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  // credentials state
+  const [credTarget, setCredTarget] = useState<System | null>(null)
+  const [credForm, setCredForm] = useState({ authClientId: '', authClientSecret: '' })
+  const [credSaving, setCredSaving] = useState(false)
+  const [credError, setCredError] = useState('')
+  const [credDone, setCredDone] = useState(false)
 
   // re-key state
   const [reKeyTarget, setReKeyTarget] = useState<System | null>(null)
@@ -50,9 +57,31 @@ export default function SystemsPage() {
 
   const closeModal = () => {
     setShowModal(false)
-    setForm({ code: '', name: '', description: '' })
+    setForm({ code: '', name: '', description: '', authClientId: '', authClientSecret: '' })
     setApiKey('')
     setError('')
+  }
+
+  const handleUpdateCredentials = async () => {
+    if (!credTarget) return
+    setCredSaving(true)
+    setCredError('')
+    try {
+      await updateSystemCredentials(credTarget.code, credForm.authClientId, credForm.authClientSecret)
+      setCredDone(true)
+    } catch (e: any) {
+      setCredError(e.response?.data?.message ?? 'เกิดข้อผิดพลาด')
+    } finally {
+      setCredSaving(false)
+    }
+  }
+
+  const closeCredentials = () => {
+    setCredTarget(null)
+    setCredForm({ authClientId: '', authClientSecret: '' })
+    setCredSaving(false)
+    setCredError('')
+    setCredDone(false)
   }
 
   const handleReKey = async () => {
@@ -128,12 +157,19 @@ export default function SystemsPage() {
               </div>
               <p className="font-semibold text-gray-800">{s.name}</p>
               {s.description && <p className="text-sm text-gray-500 mt-1">{s.description}</p>}
-              <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                 <button
                   onClick={() => setBootstrapTarget(s)}
                   className="text-xs text-gray-400 hover:text-emerald-600 transition-colors"
                 >
                   🚀 Bootstrap first user
+                </button>
+                <button
+                  onClick={() => { setCredTarget(s); setCredForm({ authClientId: '', authClientSecret: '' }) }}
+                  className="text-xs text-gray-400 hover:text-indigo-600 transition-colors"
+                  title="Set Auth Center credentials"
+                >
+                  🔑 Credentials
                 </button>
               </div>
             </div>
@@ -145,6 +181,61 @@ export default function SystemsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Credentials Modal */}
+      {credTarget && (
+        <Modal title={`Auth Credentials: ${credTarget.code}`} onClose={closeCredentials}>
+          {credDone ? (
+            <div className="space-y-4">
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-emerald-700">✅ บันทึก Credentials สำเร็จ</p>
+              </div>
+              <button onClick={closeCredentials} className="w-full bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 transition-colors">
+                ปิด
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-gray-500">
+                Client credentials สำหรับใช้ขอ token จาก Auth Center ในชื่อของระบบนี้
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client ID</label>
+                <input
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Auth Center client_id"
+                  value={credForm.authClientId}
+                  onChange={(e) => setCredForm({ ...credForm, authClientId: e.target.value })}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Client Secret</label>
+                <input
+                  type="password"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Auth Center client_secret"
+                  value={credForm.authClientSecret}
+                  onChange={(e) => setCredForm({ ...credForm, authClientSecret: e.target.value })}
+                />
+              </div>
+              {credError && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{credError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleUpdateCredentials}
+                  disabled={!credForm.authClientId || !credForm.authClientSecret || credSaving}
+                  className="flex-1 bg-indigo-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                >
+                  {credSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+                </button>
+                <button onClick={closeCredentials} className="flex-1 border border-gray-300 text-gray-700 rounded-lg py-2 text-sm hover:bg-gray-50 transition-colors">
+                  ยกเลิก
+                </button>
+              </div>
+            </div>
+          )}
+        </Modal>
       )}
 
       {/* Bootstrap Modal */}
@@ -328,6 +419,24 @@ export default function SystemsPage() {
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
+              </div>
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs text-gray-400 mb-2">Auth Center Credentials (optional)</p>
+                <div className="space-y-2">
+                  <input
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Client ID"
+                    value={form.authClientId}
+                    onChange={(e) => setForm({ ...form, authClientId: e.target.value })}
+                  />
+                  <input
+                    type="password"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Client Secret"
+                    value={form.authClientSecret}
+                    onChange={(e) => setForm({ ...form, authClientSecret: e.target.value })}
+                  />
+                </div>
               </div>
 
               {error && (
