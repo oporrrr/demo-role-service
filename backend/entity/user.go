@@ -20,6 +20,7 @@ type User struct {
 	ProfilePictureURL *string   `                         json:"profilePictureUrl"`
 	CountryCode       string    `                         json:"countryCode"`
 	PhoneNumber       string    `                         json:"phoneNumber"`
+	Role              string    `                         json:"role"`
 	CreatedAt         time.Time `                         json:"createdAt"`
 	UpdatedAt         time.Time `                         json:"updatedAt"`
 }

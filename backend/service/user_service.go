@@ -149,6 +149,7 @@ func (s *UserService) Register(req RegisterRequest, clientID, clientSecret strin
 				ProfilePictureURL: profile.ProfilePictureURL,
 				CountryCode:       profile.CountryCode,
 				PhoneNumber:       profile.PhoneNumber,
+				Role:              "NEW_USER",
 			}
 			_ = s.userRepo.Upsert(user)
 			if s.redis != nil {

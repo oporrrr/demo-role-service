@@ -13,6 +13,7 @@ import (
 )
 
 // UserProfile mirrors the full account information response from Auth Center.
+// Role is populated by the role service after login — not from Auth Center.
 type UserProfile struct {
 	ID                string  `json:"id"`
 	KeycloakUserID    string  `json:"keycloakUserId"`
@@ -31,6 +32,7 @@ type UserProfile struct {
 	PhoneNumber       string  `json:"phoneNumber"`
 	CreatedAt         string  `json:"createdAt"`
 	UpdatedAt         string  `json:"updatedAt"`
+	Role              string  `json:"role"`
 }
 
 // accountInfoResponse is the raw response shape from GET /api/v1/account/information.

@@ -63,7 +63,12 @@ func (h *UserAuthHandler) Login(c *fiber.Ctx) error {
 		return c.Status(outcome.StatusCode).Send(outcome.RawBody)
 	}
 
-	permissions := h.roleSvc.GetUserPermissions(outcome.Profile.ID, systemCode)
+	outcome.Profile.Role = h.roleSvc.GetUserRoleName(outcome.Profile.ID, systemCode)
+
+	permissions, err := h.roleSvc.GetUserPermissionsStrict(outcome.Profile.ID, systemCode)
+	if err != nil {
+		return c.Status(403).JSON(fiber.Map{"code": "FORBIDDEN", "message": err.Error()})
+	}
 	if permissions == nil {
 		permissions = []string{}
 	}

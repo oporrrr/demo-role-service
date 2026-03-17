@@ -316,6 +316,40 @@ func (s *RoleService) invalidatePermCacheBySystem(systemCode string) {
 
 // ── Permission Check ──────────────────────────────────
 
+// GetUserRoleName returns the role name assigned to accountID in systemCode.
+// Falls back to the default role name if the user has no explicit assignment.
+// Returns "" if no role is found.
+func (s *RoleService) GetUserRoleName(accountID, systemCode string) string {
+	if ur, err := s.userRoleRepo.GetRoleForSystem(accountID, systemCode); err == nil {
+		return ur.Role.Name
+	}
+	if def, err := s.roleRepo.FindDefault(systemCode); err == nil {
+		return def.Name
+	}
+	return ""
+}
+
+// GetUserPermissionsStrict is like GetUserPermissions but returns an error when
+// the user has no role and no default role is configured.
+// Used at login time — callers should reject the request on error.
+func (s *RoleService) GetUserPermissionsStrict(accountID, systemCode string) ([]string, error) {
+	if s.userRoleRepo.IsRemoved(accountID, systemCode) {
+		return nil, errors.New("role has been revoked")
+	}
+
+	_, err := s.userRoleRepo.GetRoleForSystem(accountID, systemCode)
+	if err != nil {
+		// never had a role — try default
+		if systemCode != "*" {
+			if _, defErr := s.roleRepo.FindDefault(systemCode); defErr != nil {
+				return nil, errors.New("no role assigned and no default role configured for this system")
+			}
+		}
+	}
+
+	return s.GetUserPermissions(accountID, systemCode), nil
+}
+
 // GetUserPermissions returns ["resource:action", ...] for a user in a system.
 // Results are cached in Redis for 5 minutes.
 func (s *RoleService) GetUserPermissions(accountID, systemCode string) []string {
